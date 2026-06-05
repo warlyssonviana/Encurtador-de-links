@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Encurtador de Links - API da.gd</title>
+    <title>Encurtador de Links Oficial - API da.gd</title>
     <style>
         :root {
             --bg-color: #121214;
@@ -45,6 +45,7 @@
             text-align: center;
             margin-bottom: 24px;
             font-size: 24px;
+            color: #fff;
         }
 
         .input-group {
@@ -115,6 +116,10 @@
             word-break: break-all;
         }
 
+        .result-container a:hover {
+            text-decoration: underline;
+        }
+
         .copy-btn {
             background-color: #323238;
             margin-top: 12px;
@@ -132,6 +137,11 @@
             text-align: center;
             font-size: 14px;
             display: none;
+            background-color: rgba(247, 90, 104, 0.1);
+            padding: 12px;
+            border: 1px solid var(--error-color);
+            border-radius: 4px;
+            word-break: break-word;
         }
 
         .loader {
@@ -161,7 +171,7 @@
 
         <button id="shortenBtn" onclick="shortenUrl()">Encurtar URL</button>
         
-        <div id="loader" class="loader">Encurtando...</div>
+        <div id="loader" class="loader">Processando link na API...</div>
         <div id="errorMessage" class="error-message"></div>
 
         <div id="resultContainer" class="result-container">
@@ -181,21 +191,21 @@
             const resultContainer = document.getElementById('resultContainer');
             const shortenedUrlEl = document.getElementById('shortenedUrl');
 
-            // Limpa a interface
+            // Reset do estado da tela
             errorMessage.style.display = 'none';
             resultContainer.style.display = 'none';
 
             if (!originalUrlInput) {
-                showError('Por favor, insira uma URL válida.');
+                showError('Por favor, digite ou cole uma URL original.');
                 return;
             }
 
             if (!/^https?:\/\//i.test(originalUrlInput)) {
-                showError('A URL deve começar obrigatoriamente com http:// ou https://');
+                showError('A URL digitada é inválida. Ela deve iniciar com http:// ou https://');
                 return;
             }
 
-            // Constrói a URL da API conforme solicitado
+            // Construção da rota da API oficial da.gd
             let daGdApiUrl = `https://da.gd/s?url=${encodeURIComponent(originalUrlInput)}`;
             if (customAliasInput) {
                 daGdApiUrl += `&shorturl=${encodeURIComponent(customAliasInput)}`;
@@ -203,49 +213,69 @@
 
             btn.disabled = true;
             loader.style.display = 'block';
+            loader.textContent = 'Acessando rota segura...';
 
+            // Tunelamento duplo para evitar falhas de CORS e cache local
+            const cacheBuster = Date.now();
+            const primaryProxy = `https://api.allorigins.win/get?url=${encodeURIComponent(daGdApiUrl)}&cb=${cacheBuster}`;
+            const secondaryProxy = `https://corsproxy.io/?${encodeURIComponent(daGdApiUrl)}`;
+
+            let responsePayload = "";
+            let logDeErros = "";
+
+            // Rota Principal: AllOrigins via JSON (Mais confiável contra bloqueios de segurança do Cloudflare)
             try {
-                let finalUrl = '';
-
-                try {
-                    // TENTATIVA 1: Conexão Direta (O mais puro e rápido)
-                    const directResponse = await fetch(daGdApiUrl);
-                    if (directResponse.ok) {
-                        finalUrl = await directResponse.text();
-                    } else {
-                        throw new Error("Falha na direta");
+                const response = await fetch(primaryProxy);
+                if (response.ok) {
+                    const jsonResult = await response.json();
+                    if (jsonResult && jsonResult.contents) {
+                        responsePayload = jsonResult.contents.trim();
                     }
-                } catch (e) {
-                    // TENTATIVA 2: Se o GitHub Pages/SPCK Editor bloquear, usa o túnel puro (/raw)
-                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(daGdApiUrl)}`;
-                    const proxyResponse = await fetch(proxyUrl);
-                    if (proxyResponse.ok) {
-                        finalUrl = await proxyResponse.text();
-                    } else {
-                        throw new Error("Falha no proxy");
-                    }
-                }
-
-                // Limpa espaços vazios
-                finalUrl = finalUrl.trim();
-
-                // Tratamento de mensagens de erro específicas da API da.gd
-                if (finalUrl.toLowerCase().includes('error') || finalUrl.toLowerCase().includes('invalid')) {
-                    showError(`A API recusou: O alias "${customAliasInput}" já está em uso ou a URL original é inválida.`);
-                } else if (!finalUrl) {
-                    showError('Falha ao gerar o link. O servidor não retornou resposta.');
                 } else {
-                    // Exibe o link final formatado
-                    shortenedUrlEl.href = finalUrl;
-                    shortenedUrlEl.textContent = finalUrl;
-                    resultContainer.style.display = 'block';
+                    logDeErros += `Rota 1 retornou Status HTTP ${response.status}. `;
                 }
+            } catch (err) {
+                logDeErros += `Rota 1 inacessível: ${err.message}. `;
+            }
 
-            } catch (error) {
-                showError('Falha total na conexão. Verifique sua internet.');
-            } finally {
-                btn.disabled = false;
-                loader.style.display = 'none';
+            // Rota de Contingência: CorsProxy (Dispara apenas se a primeira falhar completamente)
+            if (!responsePayload) {
+                try {
+                    loader.textContent = 'Alternando canal de rede...';
+                    const response = await fetch(secondaryProxy);
+                    if (response.ok) {
+                        const textResult = await response.text();
+                        responsePayload = textResult.trim();
+                    } else {
+                        logDeErros += `Rota 2 retornou Status HTTP ${response.status}. `;
+                    }
+                } catch (err) {
+                    logDeErros += `Rota 2 inacessível: ${err.message}. `;
+                }
+            }
+
+            loader.style.display = 'none';
+            btn.disabled = false;
+
+            // Se nenhuma das duas rotas conseguiu trazer dados
+            if (!responsePayload) {
+                showError(`Não foi possível estabelecer contato com a API da.gd. Detalhes técnicos: ${logDeErros}`);
+                return;
+            }
+
+            // Análise inteligente de erros nativos devolvidos pela própria API da.gd
+            const lowerPayload = responsePayload.toLowerCase();
+            if (lowerPayload.includes('error') || lowerPayload.includes('invalid') || lowerPayload.includes('already taken')) {
+                if (customAliasInput && (lowerPayload.includes('taken') || lowerPayload.includes('error'))) {
+                    showError(`O alias personalizado "${customAliasInput}" já foi registrado por outro usuário. Tente um nome diferente.`);
+                } else {
+                    showError(`A API recusou a requisição. Retorno do servidor: "${responsePayload}"`);
+                }
+            } else {
+                // Sucesso absoluto na geração do link customizado
+                shortenedUrlEl.href = responsePayload;
+                shortenedUrlEl.textContent = responsePayload;
+                resultContainer.style.display = 'block';
             }
         }
 
@@ -268,7 +298,7 @@
                     copyBtn.style.backgroundColor = '#323238';
                 }, 2000);
             }).catch(err => {
-                console.error('Erro ao copiar: ', err);
+                console.error('Erro de permissão ao copiar: ', err);
             });
         }
     </script>
