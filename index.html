@@ -125,6 +125,11 @@
             margin-top: 12px;
             padding: 8px;
             font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.2s;
         }
 
         .copy-btn:hover {
@@ -171,7 +176,7 @@
 
         <button id="shortenBtn" onclick="shortenUrl()">Encurtar URL</button>
         
-        <div id="loader" class="loader">Processando link na API...</div>
+        <div id="loader" class="loader">Conectando ao servidor...</div>
         <div id="errorMessage" class="error-message"></div>
 
         <div id="resultContainer" class="result-container">
@@ -191,90 +196,88 @@
             const resultContainer = document.getElementById('resultContainer');
             const shortenedUrlEl = document.getElementById('shortenedUrl');
 
-            // Reset do estado da tela
+            // Reset da interface
             errorMessage.style.display = 'none';
             resultContainer.style.display = 'none';
 
             if (!originalUrlInput) {
-                showError('Por favor, digite ou cole uma URL original.');
+                showError('Por favor, insira uma URL válida.');
                 return;
             }
 
             if (!/^https?:\/\//i.test(originalUrlInput)) {
-                showError('A URL digitada é inválida. Ela deve iniciar com http:// ou https://');
+                showError('A URL deve iniciar obrigatoriamente com http:// ou https://');
                 return;
             }
 
-            // Construção da rota da API oficial da.gd
-            let daGdApiUrl = `https://da.gd/s?url=${encodeURIComponent(originalUrlInput)}`;
+            // Montagem da URL alvo da API da.gd
+            let targetUrl = `https://da.gd/s?url=${encodeURIComponent(originalUrlInput)}`;
             if (customAliasInput) {
-                daGdApiUrl += `&shorturl=${encodeURIComponent(customAliasInput)}`;
+                targetUrl += `&shorturl=${encodeURIComponent(customAliasInput)}`;
             }
 
             btn.disabled = true;
             loader.style.display = 'block';
-            loader.textContent = 'Acessando rota segura...';
 
-            // Tunelamento duplo para evitar falhas de CORS e cache local
-            const cacheBuster = Date.now();
-            const primaryProxy = `https://api.allorigins.win/get?url=${encodeURIComponent(daGdApiUrl)}&cb=${cacheBuster}`;
-            const secondaryProxy = `https://corsproxy.io/?${encodeURIComponent(daGdApiUrl)}`;
+            // Rotas de proxy permissivas para hospedagens (GitHub Pages, Vercel, Supabase, etc.)
+            const proxies = [
+                `https://api.codetabs.com/v1/proxy?url=${encodeURIComponent(targetUrl)}`,
+                `https://corsproxy.org/?${encodeURIComponent(targetUrl)}`
+            ];
 
-            let responsePayload = "";
-            let logDeErros = "";
+            let success = false;
+            let responseText = "";
 
-            // Rota Principal: AllOrigins via JSON (Mais confiável contra bloqueios de segurança do Cloudflare)
-            try {
-                const response = await fetch(primaryProxy);
-                if (response.ok) {
-                    const jsonResult = await response.json();
-                    if (jsonResult && jsonResult.contents) {
-                        responsePayload = jsonResult.contents.trim();
-                    }
-                } else {
-                    logDeErros += `Rota 1 retornou Status HTTP ${response.status}. `;
-                }
-            } catch (err) {
-                logDeErros += `Rota 1 inacessível: ${err.message}. `;
-            }
-
-            // Rota de Contingência: CorsProxy (Dispara apenas se a primeira falhar completamente)
-            if (!responsePayload) {
+            // Tenta o tunelamento pelas rotas permissivas
+            for (let i = 0; i < proxies.length; i++) {
                 try {
-                    loader.textContent = 'Alternando canal de rede...';
-                    const response = await fetch(secondaryProxy);
-                    if (response.ok) {
-                        const textResult = await response.text();
-                        responsePayload = textResult.trim();
-                    } else {
-                        logDeErros += `Rota 2 retornou Status HTTP ${response.status}. `;
+                    loader.textContent = `Tentando rota ${i + 1}...`;
+                    const res = await fetch(proxies[i]);
+                    
+                    if (res.ok) {
+                        responseText = await res.text();
+                        success = true;
+                        break; 
                     }
                 } catch (err) {
-                    logDeErros += `Rota 2 inacessível: ${err.message}. `;
+                    console.warn(`Rota ${i + 1} falhou.`);
+                }
+            }
+
+            // Se os proxies falharem, tenta a conexão direta nativa como último recurso
+            if (!success) {
+                try {
+                    loader.textContent = `Tentando conexão direta...`;
+                    const resDirect = await fetch(targetUrl);
+                    if (resDirect.ok) {
+                        responseText = await resDirect.text();
+                        success = true;
+                    }
+                } catch (err) {
+                    console.warn(`Conexão direta falhou.`);
                 }
             }
 
             loader.style.display = 'none';
             btn.disabled = false;
 
-            // Se nenhuma das duas rotas conseguiu trazer dados
-            if (!responsePayload) {
-                showError(`Não foi possível estabelecer contato com a API da.gd. Detalhes técnicos: ${logDeErros}`);
+            if (!success) {
+                showError(`O servidor impediu a conexão. Tente desativar extensões bloqueadoras de anúncios ou recarregue a página.`);
                 return;
             }
 
-            // Análise inteligente de erros nativos devolvidos pela própria API da.gd
-            const lowerPayload = responsePayload.toLowerCase();
-            if (lowerPayload.includes('error') || lowerPayload.includes('invalid') || lowerPayload.includes('already taken')) {
-                if (customAliasInput && (lowerPayload.includes('taken') || lowerPayload.includes('error'))) {
-                    showError(`O alias personalizado "${customAliasInput}" já foi registrado por outro usuário. Tente um nome diferente.`);
-                } else {
-                    showError(`A API recusou a requisição. Retorno do servidor: "${responsePayload}"`);
-                }
+            responseText = responseText.trim();
+            const lowerResponse = responseText.toLowerCase();
+
+            // Verificação do retorno em texto da da.gd
+            if (lowerResponse.includes("error") || lowerResponse.includes("invalid") || lowerResponse.includes("taken")) {
+                showError(`A API recusou: O alias "${customAliasInput}" já está em uso ou a URL fornecida é inacessível.`);
+            } else if (!responseText) {
+                showError('Falha: A API não devolveu nenhum link.');
             } else {
-                // Sucesso absoluto na geração do link customizado
-                shortenedUrlEl.href = responsePayload;
-                shortenedUrlEl.textContent = responsePayload;
+                // Link gerado com sucesso
+                shortenedUrlEl.href = responseText;
+                shortenedUrlEl.textContent = responseText;
                 resultContainer.style.display = 'block';
             }
         }
@@ -298,7 +301,7 @@
                     copyBtn.style.backgroundColor = '#323238';
                 }, 2000);
             }).catch(err => {
-                console.error('Erro de permissão ao copiar: ', err);
+                alert('Erro ao copiar. Verifique as permissões do navegador.');
             });
         }
     </script>
