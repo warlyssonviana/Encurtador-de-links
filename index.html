@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Encurtador de Links - API da.gd</title>
+    <title>Encurtador de Links Premium - da.gd</title>
     <style>
         :root {
             --bg-color: #121214;
@@ -45,6 +45,7 @@
             text-align: center;
             margin-bottom: 24px;
             font-size: 24px;
+            color: #fff;
         }
 
         .input-group {
@@ -136,6 +137,10 @@
             text-align: center;
             font-size: 14px;
             display: none;
+            background: rgba(247, 90, 104, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--error-color);
         }
 
         .loader {
@@ -165,7 +170,7 @@
 
         <button id="shortenBtn" onclick="shortenUrl()">Encurtar URL</button>
         
-        <div id="loader" class="loader">Encurtando... aguarde.</div>
+        <div id="loader" class="loader">Processando requisição segura...</div>
         <div id="errorMessage" class="error-message"></div>
 
         <div id="resultContainer" class="result-container">
@@ -185,7 +190,7 @@
             const resultContainer = document.getElementById('resultContainer');
             const shortenedUrlEl = document.getElementById('shortenedUrl');
 
-            // Reseta a UI
+            // Resetando estados visuais
             errorMessage.style.display = 'none';
             resultContainer.style.display = 'none';
 
@@ -195,51 +200,77 @@
             }
 
             if (!/^https?:\/\//i.test(originalUrlInput)) {
-                showError('A URL deve começar com http:// ou https://');
+                showError('A URL deve começar obrigatoriamente com http:// ou https://');
                 return;
             }
 
-            // Monta a URL da API da.gd
+            // Endereço base requisitado da API da.gd
             let daGdApiUrl = `https://da.gd/s?url=${encodeURIComponent(originalUrlInput)}`;
             if (customAliasInput) {
                 daGdApiUrl += `&shorturl=${encodeURIComponent(customAliasInput)}`;
             }
 
-            // Novo proxy AllOrigins: retorna os dados empacotados em JSON, contornando bloqueios de CORS estritos
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(daGdApiUrl)}`;
-
-            try {
-                btn.disabled = true;
-                loader.style.display = 'block';
-
-                const response = await fetch(proxyUrl);
-
-                if (!response.ok) {
-                    throw new Error(`Erro de rede: ${response.status}`);
+            // Sistema Multi-Proxy: Se um falhar, o próximo assume instantaneamente
+            const proxies = [
+                { 
+                    getUrl: (target) => `https://corsproxy.io/?${encodeURIComponent(target)}`, 
+                    parse: async (res) => res.text() 
+                },
+                { 
+                    getUrl: (target) => `https://api.codetabs.com/v1/proxy?url=${encodeURIComponent(target)}`, 
+                    parse: async (res) => res.text() 
+                },
+                { 
+                    getUrl: (target) => `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`, 
+                    parse: async (res) => { const json = await res.json(); return json.contents; } 
                 }
+            ];
 
-                const data = await response.json();
-                
-                // O AllOrigins devolve o texto bruto da requisição dentro da chave "contents"
-                const finalUrl = data.contents ? data.contents.trim() : '';
+            btn.disabled = true;
+            loader.style.display = 'block';
 
-                if (finalUrl.toLowerCase().includes('error') || finalUrl.toLowerCase().includes('invalid')) {
-                    showError(`Erro da API: O alias "${customAliasInput}" pode já estar em uso ou a URL é inválida.`);
-                } else if (finalUrl === '') {
-                    showError('Erro desconhecido ao encurtar o link. A API não retornou dados.');
-                } else {
-                    // Sucesso
-                    shortenedUrlEl.href = finalUrl;
-                    shortenedUrlEl.textContent = finalUrl;
-                    resultContainer.style.display = 'block';
+            let finalUrl = '';
+            let requestSuccess = false;
+
+            // Laço de repetição que testa as rotas anti-CORS disponíveis
+            for (let i = 0; i < proxies.length; i++) {
+                try {
+                    loader.textContent = `Encurtando... (Conectando via rota ${i + 1})`;
+                    const currentProxy = proxies[i];
+                    
+                    const response = await fetch(currentProxy.getUrl(daGdApiUrl));
+                    if (!response.ok) continue; // Falhou HTTP, pula pro próximo proxy
+
+                    const responseData = await currentProxy.parse(response);
+                    if (responseData && responseData.trim()) {
+                        finalUrl = responseData.trim();
+                        requestSuccess = true;
+                        break; // Sucesso obtido, interrompe o loop
+                    }
+                } catch (err) {
+                    console.warn(`Rota de proxy ${i + 1} falhou, tentando próxima...`);
+                    // Erro de rede ou timeout, continua o laço para o próximo item
                 }
+            }
 
-            } catch (error) {
-                console.error('Erro na requisição:', error);
-                showError('Falha na conexão. O proxy pode estar instável no momento. Tente novamente.');
-            } finally {
-                btn.disabled = false;
-                loader.style.display = 'none';
+            loader.style.display = 'none';
+            btn.disabled = false;
+
+            if (!requestSuccess) {
+                showError('Erro temporário de comunicação externa. Por favor, clique novamente para reestabelecer o túnel de conexão.');
+                return;
+            }
+
+            // Filtragem de respostas literais de erro vindas do servidor interno da da.gd
+            if (finalUrl.toLowerCase().includes('error') || finalUrl.toLowerCase().includes('invalid')) {
+                showError(`Resposta da API: O alias "${customAliasInput}" já está em uso ou a URL fornecida é inacessível.`);
+            } else if (finalUrl === '') {
+                showError('Servidor retornou um corpo de dados nulo. Tente novamente.');
+            } else {
+                // Tudo certo, exibe o link gerado pela da.gd
+                shortenedUrlEl.href = finalUrl;
+                shortenedUrlEl.textContent = finalUrl;
+                resultContainer.style.display = 'block';
             }
         }
 
@@ -262,8 +293,7 @@
                     copyBtn.style.backgroundColor = '#323238';
                 }, 2000);
             }).catch(err => {
-                console.error('Erro ao copiar: ', err);
-                alert('Erro ao copiar para a área de transferência.');
+                console.error('Falha ao acessar clipboard: ', err);
             });
         }
     </script>
