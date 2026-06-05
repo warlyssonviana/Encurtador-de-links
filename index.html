@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Encurtador de Links Premium - da.gd</title>
+    <title>Encurtador de Links - API da.gd</title>
     <style>
         :root {
             --bg-color: #121214;
@@ -45,7 +45,6 @@
             text-align: center;
             margin-bottom: 24px;
             font-size: 24px;
-            color: #fff;
         }
 
         .input-group {
@@ -116,10 +115,6 @@
             word-break: break-all;
         }
 
-        .result-container a:hover {
-            text-decoration: underline;
-        }
-
         .copy-btn {
             background-color: #323238;
             margin-top: 12px;
@@ -137,10 +132,6 @@
             text-align: center;
             font-size: 14px;
             display: none;
-            background: rgba(247, 90, 104, 0.1);
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid var(--error-color);
         }
 
         .loader {
@@ -170,7 +161,7 @@
 
         <button id="shortenBtn" onclick="shortenUrl()">Encurtar URL</button>
         
-        <div id="loader" class="loader">Processando requisição segura...</div>
+        <div id="loader" class="loader">Encurtando...</div>
         <div id="errorMessage" class="error-message"></div>
 
         <div id="resultContainer" class="result-container">
@@ -190,7 +181,7 @@
             const resultContainer = document.getElementById('resultContainer');
             const shortenedUrlEl = document.getElementById('shortenedUrl');
 
-            // Resetando estados visuais
+            // Limpa a interface
             errorMessage.style.display = 'none';
             resultContainer.style.display = 'none';
 
@@ -204,73 +195,57 @@
                 return;
             }
 
-            // Endereço base requisitado da API da.gd
+            // Constrói a URL da API conforme solicitado
             let daGdApiUrl = `https://da.gd/s?url=${encodeURIComponent(originalUrlInput)}`;
             if (customAliasInput) {
                 daGdApiUrl += `&shorturl=${encodeURIComponent(customAliasInput)}`;
             }
 
-            // Sistema Multi-Proxy: Se um falhar, o próximo assume instantaneamente
-            const proxies = [
-                { 
-                    getUrl: (target) => `https://corsproxy.io/?${encodeURIComponent(target)}`, 
-                    parse: async (res) => res.text() 
-                },
-                { 
-                    getUrl: (target) => `https://api.codetabs.com/v1/proxy?url=${encodeURIComponent(target)}`, 
-                    parse: async (res) => res.text() 
-                },
-                { 
-                    getUrl: (target) => `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`, 
-                    parse: async (res) => { const json = await res.json(); return json.contents; } 
-                }
-            ];
-
             btn.disabled = true;
             loader.style.display = 'block';
 
-            let finalUrl = '';
-            let requestSuccess = false;
+            try {
+                let finalUrl = '';
 
-            // Laço de repetição que testa as rotas anti-CORS disponíveis
-            for (let i = 0; i < proxies.length; i++) {
                 try {
-                    loader.textContent = `Encurtando... (Conectando via rota ${i + 1})`;
-                    const currentProxy = proxies[i];
-                    
-                    const response = await fetch(currentProxy.getUrl(daGdApiUrl));
-                    if (!response.ok) continue; // Falhou HTTP, pula pro próximo proxy
-
-                    const responseData = await currentProxy.parse(response);
-                    if (responseData && responseData.trim()) {
-                        finalUrl = responseData.trim();
-                        requestSuccess = true;
-                        break; // Sucesso obtido, interrompe o loop
+                    // TENTATIVA 1: Conexão Direta (O mais puro e rápido)
+                    const directResponse = await fetch(daGdApiUrl);
+                    if (directResponse.ok) {
+                        finalUrl = await directResponse.text();
+                    } else {
+                        throw new Error("Falha na direta");
                     }
-                } catch (err) {
-                    console.warn(`Rota de proxy ${i + 1} falhou, tentando próxima...`);
-                    // Erro de rede ou timeout, continua o laço para o próximo item
+                } catch (e) {
+                    // TENTATIVA 2: Se o GitHub Pages/SPCK Editor bloquear, usa o túnel puro (/raw)
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(daGdApiUrl)}`;
+                    const proxyResponse = await fetch(proxyUrl);
+                    if (proxyResponse.ok) {
+                        finalUrl = await proxyResponse.text();
+                    } else {
+                        throw new Error("Falha no proxy");
+                    }
                 }
-            }
 
-            loader.style.display = 'none';
-            btn.disabled = false;
+                // Limpa espaços vazios
+                finalUrl = finalUrl.trim();
 
-            if (!requestSuccess) {
-                showError('Erro temporário de comunicação externa. Por favor, clique novamente para reestabelecer o túnel de conexão.');
-                return;
-            }
+                // Tratamento de mensagens de erro específicas da API da.gd
+                if (finalUrl.toLowerCase().includes('error') || finalUrl.toLowerCase().includes('invalid')) {
+                    showError(`A API recusou: O alias "${customAliasInput}" já está em uso ou a URL original é inválida.`);
+                } else if (!finalUrl) {
+                    showError('Falha ao gerar o link. O servidor não retornou resposta.');
+                } else {
+                    // Exibe o link final formatado
+                    shortenedUrlEl.href = finalUrl;
+                    shortenedUrlEl.textContent = finalUrl;
+                    resultContainer.style.display = 'block';
+                }
 
-            // Filtragem de respostas literais de erro vindas do servidor interno da da.gd
-            if (finalUrl.toLowerCase().includes('error') || finalUrl.toLowerCase().includes('invalid')) {
-                showError(`Resposta da API: O alias "${customAliasInput}" já está em uso ou a URL fornecida é inacessível.`);
-            } else if (finalUrl === '') {
-                showError('Servidor retornou um corpo de dados nulo. Tente novamente.');
-            } else {
-                // Tudo certo, exibe o link gerado pela da.gd
-                shortenedUrlEl.href = finalUrl;
-                shortenedUrlEl.textContent = finalUrl;
-                resultContainer.style.display = 'block';
+            } catch (error) {
+                showError('Falha total na conexão. Verifique sua internet.');
+            } finally {
+                btn.disabled = false;
+                loader.style.display = 'none';
             }
         }
 
@@ -293,7 +268,7 @@
                     copyBtn.style.backgroundColor = '#323238';
                 }, 2000);
             }).catch(err => {
-                console.error('Falha ao acessar clipboard: ', err);
+                console.error('Erro ao copiar: ', err);
             });
         }
     </script>
