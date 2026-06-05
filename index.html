@@ -194,7 +194,6 @@
                 return;
             }
 
-            // Validação simples de URL
             if (!/^https?:\/\//i.test(originalUrlInput)) {
                 showError('A URL deve começar com http:// ou https://');
                 return;
@@ -206,8 +205,8 @@
                 daGdApiUrl += `&shorturl=${encodeURIComponent(customAliasInput)}`;
             }
 
-            // Proxy de CORS para evitar bloqueios do navegador
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(daGdApiUrl)}`;
+            // Novo proxy AllOrigins: retorna os dados empacotados em JSON, contornando bloqueios de CORS estritos
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(daGdApiUrl)}`;
 
             try {
                 btn.disabled = true;
@@ -216,17 +215,18 @@
                 const response = await fetch(proxyUrl);
 
                 if (!response.ok) {
-                    throw new Error(`Erro HTTP: ${response.status}`);
+                    throw new Error(`Erro de rede: ${response.status}`);
                 }
 
-                const textResponse = await response.text();
-                const finalUrl = textResponse.trim();
+                const data = await response.json();
+                
+                // O AllOrigins devolve o texto bruto da requisição dentro da chave "contents"
+                const finalUrl = data.contents ? data.contents.trim() : '';
 
-                // A API da.gd retorna o próprio erro em formato de texto se o alias já existir ou a URL for inválida
                 if (finalUrl.toLowerCase().includes('error') || finalUrl.toLowerCase().includes('invalid')) {
                     showError(`Erro da API: O alias "${customAliasInput}" pode já estar em uso ou a URL é inválida.`);
                 } else if (finalUrl === '') {
-                    showError('Erro desconhecido ao encurtar o link.');
+                    showError('Erro desconhecido ao encurtar o link. A API não retornou dados.');
                 } else {
                     // Sucesso
                     shortenedUrlEl.href = finalUrl;
@@ -236,7 +236,7 @@
 
             } catch (error) {
                 console.error('Erro na requisição:', error);
-                showError('Falha na conexão. Verifique sua internet ou tente novamente mais tarde.');
+                showError('Falha na conexão. O proxy pode estar instável no momento. Tente novamente.');
             } finally {
                 btn.disabled = false;
                 loader.style.display = 'none';
@@ -269,4 +269,3 @@
     </script>
 </body>
 </html>
-
