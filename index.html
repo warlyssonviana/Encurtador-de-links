@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encurtador de Links - API da.gd</title>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #202024;
+            --text-color: #e1e1e6;
+            --primary-color: #8257e5;
+            --primary-hover: #9466ff;
+            --error-color: #f75a68;
+            --success-color: #00b37e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 24px;
+            font-size: 24px;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 4px;
+            border: 1px solid #323238;
+            background-color: #121214;
+            color: var(--text-color);
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--primary-color);
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 8px;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        .result-container {
+            margin-top: 24px;
+            padding: 16px;
+            background-color: #121214;
+            border: 1px solid var(--success-color);
+            border-radius: 4px;
+            display: none;
+            text-align: center;
+        }
+
+        .result-container a {
+            color: var(--success-color);
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .result-container a:hover {
+            text-decoration: underline;
+        }
+
+        .copy-btn {
+            background-color: #323238;
+            margin-top: 12px;
+            padding: 8px;
+            font-size: 14px;
+        }
+
+        .copy-btn:hover {
+            background-color: #4a4a50;
+        }
+
+        .error-message {
+            color: var(--error-color);
+            margin-top: 16px;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+        }
+
+        .loader {
+            display: none;
+            text-align: center;
+            margin-top: 16px;
+            font-size: 14px;
+            color: #a8a8b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Encurtador de Links</h1>
+        
+        <div class="input-group">
+            <label for="originalUrl">URL Original (Obrigatório)</label>
+            <input type="url" id="originalUrl" placeholder="https://exemplo.com" required>
+        </div>
+
+        <div class="input-group">
+            <label for="customAlias">Alias Personalizado (Opcional)</label>
+            <input type="text" id="customAlias" placeholder="meu-link-top" pattern="[a-zA-Z0-9_-]+">
+            <small style="color: #a8a8b3; font-size: 12px; display: block; margin-top: 4px;">Apenas letras, números, traços e underlines.</small>
+        </div>
+
+        <button id="shortenBtn" onclick="shortenUrl()">Encurtar URL</button>
+        
+        <div id="loader" class="loader">Encurtando... aguarde.</div>
+        <div id="errorMessage" class="error-message"></div>
+
+        <div id="resultContainer" class="result-container">
+            <p style="margin-bottom: 8px; font-size: 14px;">Seu link encurtado:</p>
+            <a href="#" id="shortenedUrl" target="_blank"></a>
+            <button class="copy-btn" onclick="copyToClipboard()">Copiar Link</button>
+        </div>
+    </div>
+
+    <script>
+        async function shortenUrl() {
+            const originalUrlInput = document.getElementById('originalUrl').value.trim();
+            const customAliasInput = document.getElementById('customAlias').value.trim();
+            const btn = document.getElementById('shortenBtn');
+            const loader = document.getElementById('loader');
+            const errorMessage = document.getElementById('errorMessage');
+            const resultContainer = document.getElementById('resultContainer');
+            const shortenedUrlEl = document.getElementById('shortenedUrl');
+
+            // Reseta a UI
+            errorMessage.style.display = 'none';
+            resultContainer.style.display = 'none';
+
+            if (!originalUrlInput) {
+                showError('Por favor, insira uma URL válida.');
+                return;
+            }
+
+            // Validação simples de URL
+            if (!/^https?:\/\//i.test(originalUrlInput)) {
+                showError('A URL deve começar com http:// ou https://');
+                return;
+            }
+
+            // Monta a URL da API da.gd
+            let daGdApiUrl = `https://da.gd/s?url=${encodeURIComponent(originalUrlInput)}`;
+            if (customAliasInput) {
+                daGdApiUrl += `&shorturl=${encodeURIComponent(customAliasInput)}`;
+            }
+
+            // Proxy de CORS para evitar bloqueios do navegador
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(daGdApiUrl)}`;
+
+            try {
+                btn.disabled = true;
+                loader.style.display = 'block';
+
+                const response = await fetch(proxyUrl);
+
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status}`);
+                }
+
+                const textResponse = await response.text();
+                const finalUrl = textResponse.trim();
+
+                // A API da.gd retorna o próprio erro em formato de texto se o alias já existir ou a URL for inválida
+                if (finalUrl.toLowerCase().includes('error') || finalUrl.toLowerCase().includes('invalid')) {
+                    showError(`Erro da API: O alias "${customAliasInput}" pode já estar em uso ou a URL é inválida.`);
+                } else if (finalUrl === '') {
+                    showError('Erro desconhecido ao encurtar o link.');
+                } else {
+                    // Sucesso
+                    shortenedUrlEl.href = finalUrl;
+                    shortenedUrlEl.textContent = finalUrl;
+                    resultContainer.style.display = 'block';
+                }
+
+            } catch (error) {
+                console.error('Erro na requisição:', error);
+                showError('Falha na conexão. Verifique sua internet ou tente novamente mais tarde.');
+            } finally {
+                btn.disabled = false;
+                loader.style.display = 'none';
+            }
+        }
+
+        function showError(msg) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = msg;
+            errorMessage.style.display = 'block';
+        }
+
+        function copyToClipboard() {
+            const urlToCopy = document.getElementById('shortenedUrl').textContent;
+            navigator.clipboard.writeText(urlToCopy).then(() => {
+                const copyBtn = document.querySelector('.copy-btn');
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copiado!';
+                copyBtn.style.backgroundColor = 'var(--success-color)';
+                
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.backgroundColor = '#323238';
+                }, 2000);
+            }).catch(err => {
+                console.error('Erro ao copiar: ', err);
+                alert('Erro ao copiar para a área de transferência.');
+            });
+        }
+    </script>
+</body>
+</html>
+
