@@ -3,154 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Encurtador de Links Oficial - API da.gd</title>
+    <title>Encurtador de Links</title>
     <style>
-        :root {
-            --bg-color: #121214;
-            --card-bg: #202024;
-            --text-color: #e1e1e6;
-            --primary-color: #8257e5;
-            --primary-hover: #9466ff;
-            --error-color: #f75a68;
-            --success-color: #00b37e;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            background-color: var(--card-bg);
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            max-width: 500px;
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 24px;
-            font-size: 24px;
-            color: #fff;
-        }
-
-        .input-group {
-            margin-bottom: 16px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        input {
-            width: 100%;
-            padding: 12px;
-            border-radius: 4px;
-            border: 1px solid #323238;
-            background-color: #121214;
-            color: var(--text-color);
-            font-size: 16px;
-            transition: border-color 0.2s;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        button {
-            width: 100%;
-            padding: 14px;
-            border: none;
-            border-radius: 4px;
-            background-color: var(--primary-color);
-            color: #fff;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            margin-top: 8px;
-        }
-
-        button:hover {
-            background-color: var(--primary-hover);
-        }
-
-        button:disabled {
-            background-color: #555;
-            cursor: not-allowed;
-        }
-
-        .result-container {
-            margin-top: 24px;
-            padding: 16px;
-            background-color: #121214;
-            border: 1px solid var(--success-color);
-            border-radius: 4px;
-            display: none;
-            text-align: center;
-        }
-
-        .result-container a {
-            color: var(--success-color);
-            font-size: 18px;
-            font-weight: bold;
-            text-decoration: none;
-            word-break: break-all;
-        }
-
-        .result-container a:hover {
-            text-decoration: underline;
-        }
-
-        .copy-btn {
-            background-color: #323238;
-            margin-top: 12px;
-            padding: 8px;
-            font-size: 14px;
-        }
-
-        .copy-btn:hover {
-            background-color: #4a4a50;
-        }
-
-        .error-message {
-            color: var(--error-color);
-            margin-top: 16px;
-            text-align: center;
-            font-size: 14px;
-            display: none;
-            background-color: rgba(247, 90, 104, 0.1);
-            padding: 12px;
-            border: 1px solid var(--error-color);
-            border-radius: 4px;
-            word-break: break-word;
-        }
-
-        .loader {
-            display: none;
-            text-align: center;
-            margin-top: 16px;
-            font-size: 14px;
-            color: #a8a8b3;
-        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #121214; color: #e1e1e6; display: flex; justify-content: center; align-items: center; height: 100vh; padding: 20px; }
+        .container { background-color: #202024; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); width: 100%; max-width: 400px; text-align: center; }
+        h1 { margin-bottom: 20px; font-size: 22px; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #323238; background-color: #121214; color: #fff; font-size: 16px; }
+        input:focus { outline: none; border-color: #8257e5; }
+        button { width: 100%; padding: 12px; background-color: #8257e5; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background-color: #9466ff; }
+        #loader { display: none; margin-top: 15px; font-size: 14px; color: #a8a8b3; }
+        #resultado { margin-top: 20px; display: none; }
+        #link-gerado { color: #00b37e; font-size: 18px; font-weight: bold; text-decoration: none; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -158,149 +23,63 @@
     <div class="container">
         <h1>Encurtador de Links</h1>
         
-        <div class="input-group">
-            <label for="originalUrl">URL Original (Obrigatório)</label>
-            <input type="url" id="originalUrl" placeholder="https://exemplo.com" required>
-        </div>
-
-        <div class="input-group">
-            <label for="customAlias">Alias Personalizado (Opcional)</label>
-            <input type="text" id="customAlias" placeholder="meu-link-top" pattern="[a-zA-Z0-9_-]+">
-            <small style="color: #a8a8b3; font-size: 12px; display: block; margin-top: 4px;">Apenas letras, números, traços e underlines.</small>
-        </div>
-
-        <button id="shortenBtn" onclick="shortenUrl()">Encurtar URL</button>
+        <input type="url" id="urlOriginal" placeholder="Cole seu link longo aqui" required>
+        <input type="text" id="alias" placeholder="Nome personalizado (Opcional)">
         
-        <div id="loader" class="loader">Processando link na API...</div>
-        <div id="errorMessage" class="error-message"></div>
-
-        <div id="resultContainer" class="result-container">
-            <p style="margin-bottom: 8px; font-size: 14px;">Seu link encurtado:</p>
-            <a href="#" id="shortenedUrl" target="_blank"></a>
-            <button class="copy-btn" onclick="copyToClipboard()">Copiar Link</button>
+        <button onclick="encurtarLink()">Encurtar Link</button>
+        
+        <div id="loader">Aguarde, gerando link...</div>
+        
+        <div id="resultado">
+            <p style="margin-bottom: 10px; font-size: 14px;">Link pronto:</p>
+            <a href="#" id="link-gerado" target="_blank"></a>
         </div>
     </div>
 
     <script>
-        async function shortenUrl() {
-            const originalUrlInput = document.getElementById('originalUrl').value.trim();
-            const customAliasInput = document.getElementById('customAlias').value.trim();
-            const btn = document.getElementById('shortenBtn');
+        async function encurtarLink() {
+            const urlOriginal = document.getElementById('urlOriginal').value.trim();
+            const alias = document.getElementById('alias').value.trim();
+            const resultadoDiv = document.getElementById('resultado');
+            const linkGerado = document.getElementById('link-gerado');
             const loader = document.getElementById('loader');
-            const errorMessage = document.getElementById('errorMessage');
-            const resultContainer = document.getElementById('resultContainer');
-            const shortenedUrlEl = document.getElementById('shortenedUrl');
 
-            // Reset do estado da tela
-            errorMessage.style.display = 'none';
-            resultContainer.style.display = 'none';
-
-            if (!originalUrlInput) {
-                showError('Por favor, digite ou cole uma URL original.');
+            if (!urlOriginal) {
+                alert("Por favor, insira um link para encurtar.");
                 return;
             }
 
-            if (!/^https?:\/\//i.test(originalUrlInput)) {
-                showError('A URL digitada é inválida. Ela deve iniciar com http:// ou https://');
-                return;
-            }
-
-            // Construção da rota da API oficial da.gd
-            let daGdApiUrl = `https://da.gd/s?url=${encodeURIComponent(originalUrlInput)}`;
-            if (customAliasInput) {
-                daGdApiUrl += `&shorturl=${encodeURIComponent(customAliasInput)}`;
-            }
-
-            btn.disabled = true;
+            resultadoDiv.style.display = 'none';
             loader.style.display = 'block';
-            loader.textContent = 'Acessando rota segura...';
 
-            // Tunelamento duplo para evitar falhas de CORS e cache local
-            const cacheBuster = Date.now();
-            const primaryProxy = `https://api.allorigins.win/get?url=${encodeURIComponent(daGdApiUrl)}&cb=${cacheBuster}`;
-            const secondaryProxy = `https://corsproxy.io/?${encodeURIComponent(daGdApiUrl)}`;
+            // Monta a URL da API
+            let apiUrl = `https://da.gd/s?url=${encodeURIComponent(urlOriginal)}`;
+            if (alias) {
+                apiUrl += `&shorturl=${encodeURIComponent(alias)}`;
+            }
 
-            let responsePayload = "";
-            let logDeErros = "";
+            // Proxy embutido limpo (o mesmo formato usado pela IA do vídeo)
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
 
-            // Rota Principal: AllOrigins via JSON (Mais confiável contra bloqueios de segurança do Cloudflare)
             try {
-                const response = await fetch(primaryProxy);
-                if (response.ok) {
-                    const jsonResult = await response.json();
-                    if (jsonResult && jsonResult.contents) {
-                        responsePayload = jsonResult.contents.trim();
-                    }
+                const response = await fetch(proxyUrl);
+                const data = await response.json();
+                const linkFinal = data.contents.trim();
+
+                if (linkFinal.includes('error') || linkFinal.includes('invalid') || linkFinal === '') {
+                    alert("Erro: O nome personalizado já está em uso ou o link longo é inválido. Tente outro.");
                 } else {
-                    logDeErros += `Rota 1 retornou Status HTTP ${response.status}. `;
+                    linkGerado.href = linkFinal;
+                    linkGerado.textContent = linkFinal;
+                    resultadoDiv.style.display = 'block';
                 }
-            } catch (err) {
-                logDeErros += `Rota 1 inacessível: ${err.message}. `;
+            } catch (error) {
+                alert("Erro ao conectar com o servidor. Tente novamente.");
+            } finally {
+                loader.style.display = 'none';
             }
-
-            // Rota de Contingência: CorsProxy (Dispara apenas se a primeira falhar completamente)
-            if (!responsePayload) {
-                try {
-                    loader.textContent = 'Alternando canal de rede...';
-                    const response = await fetch(secondaryProxy);
-                    if (response.ok) {
-                        const textResult = await response.text();
-                        responsePayload = textResult.trim();
-                    } else {
-                        logDeErros += `Rota 2 retornou Status HTTP ${response.status}. `;
-                    }
-                } catch (err) {
-                    logDeErros += `Rota 2 inacessível: ${err.message}. `;
-                }
-            }
-
-            loader.style.display = 'none';
-            btn.disabled = false;
-
-            // Se nenhuma das duas rotas conseguiu trazer dados
-            if (!responsePayload) {
-                showError(`Não foi possível estabelecer contato com a API da.gd. Detalhes técnicos: ${logDeErros}`);
-                return;
-            }
-
-            // Análise inteligente de erros nativos devolvidos pela própria API da.gd
-            const lowerPayload = responsePayload.toLowerCase();
-            if (lowerPayload.includes('error') || lowerPayload.includes('invalid') || lowerPayload.includes('already taken')) {
-                if (customAliasInput && (lowerPayload.includes('taken') || lowerPayload.includes('error'))) {
-                    showError(`O alias personalizado "${customAliasInput}" já foi registrado por outro usuário. Tente um nome diferente.`);
-                } else {
-                    showError(`A API recusou a requisição. Retorno do servidor: "${responsePayload}"`);
-                }
-            } else {
-                // Sucesso absoluto na geração do link customizado
-                shortenedUrlEl.href = responsePayload;
-                shortenedUrlEl.textContent = responsePayload;
-                resultContainer.style.display = 'block';
-            }
-        }
-
-        function showError(msg) {
-            const errorMessage = document.getElementById('errorMessage');
-            errorMessage.textContent = msg;
-            errorMessage.style.display = 'block';
-        }
-
-        function copyToClipboard() {
-            const urlToCopy = document.getElementById('shortenedUrl').textContent;
-            navigator.clipboard.writeText(urlToCopy).then(() => {
-                const copyBtn = document.querySelector('.copy-btn');
-                const originalText = copyBtn.textContent;
-                copyBtn.textContent = 'Copiado!';
-                copyBtn.style.backgroundColor = 'var(--success-color)';
-                
-                setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.style.backgroundColor = '#323238';
-                }, 2000);
-            }).catch(err => {
-                console.error('Erro de permissão ao copiar: ', err);
-            });
         }
     </script>
+
 </body>
 </html>
